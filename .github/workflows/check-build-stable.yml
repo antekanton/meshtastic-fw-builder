@@ -1,0 +1,117 @@
+name: Stable Check-Build Meshtastic Heltec v4 OLED_RU
+
+on:
+  workflow_dispatch:     # Manual trigger for testing
+  # repository_dispatch:   # Optional external trigger
+  #   types: [meshtastic-release] # Disabled temporarily as stable v4 isn't out yet
+  # schedule:
+  #   - cron: "0 2 * * *"  # Disabled temporarily as stable v4 isn't out yet  # Run daily to check for new releases
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: |
+          pip install -U pip
+          pip install platformio
+
+      - name: Fetch latest Meshtastic release
+        id: get_release
+        run: |
+          LATEST_TAG=$(curl -s https://api.github.com/repos/meshtastic/firmware/releases/latest | jq -r .tag_name)
+          echo "Latest Meshtastic release: $LATEST_TAG"
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "ru_tag=${LATEST_TAG}-ru" >> $GITHUB_OUTPUT
+
+      - name: Check if already built
+        id: check_release
+        run: |
+          if gh release view "${{ steps.get_release.outputs.ru_tag }}" >/dev/null 2>&1; then
+            echo "Release already exists. Skipping build."
+            echo "skip_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip_build=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Stop job if already built
+        if: steps.check_release.outputs.skip_build == 'true'
+        run: exit 0
+
+      - name: Clone Meshtastic firmware at latest release
+        if: steps.check_release.outputs.skip_build == 'false'
+        run: |
+          git clone --depth=1 --branch ${{ steps.get_release.outputs.tag }} https://github.com/meshtastic/firmware.git
+          cd firmware
+          git submodule update --init --recursive
+          
+      - name: Patch platformio.ini for OLED_RU
+        if: steps.check_release.outputs.skip_build == 'false'
+        run: |
+          sed -i '/-I variants\/esp32s3\/heltec_v4/a\  -D OLED_RU' firmware/variants/esp32s3/heltec_v4/platformio.ini
+          cat firmware/variants/esp32s3/heltec_v4/platformio.ini
+      
+      - name: Build Heltec V4 firmware
+        if: steps.check_release.outputs.skip_build == 'false'
+        run: |
+          cd firmware
+          pio run -e heltec-v4
+
+      - name: Rename binaries with versioned names
+        if: steps.check_release.outputs.skip_build == 'false'
+        run: |
+          cd firmware/.pio/build/heltec-v4
+          for f in *heltec-v4*.bin; do [[ "$f" == *-v4-ru-* ]] && continue; mv -- "$f" "${f/-v4-/-v4-ru-}"; done
+
+      - name: Generate checksums
+        if: steps.check_release.outputs.skip_build == 'false'
+        id: checksum
+        run: |
+          cd firmware/.pio/build/heltec-v4
+          for f in firmware-heltec-v4-ru-*.bin; do
+            sha256sum "$f" >> SHA256SUMS.txt
+          done
+          echo "Checksums generated:"
+          cat SHA256SUMS.txt
+
+      - name: Upload firmware binaries (Actions artifacts)
+        if: steps.check_release.outputs.skip_build == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: heltec-v4-${{ steps.get_release.outputs.ru_tag }}
+          path: |
+            firmware/.pio/build/heltec-v4/firmware-heltec-v4-ru-*.bin
+            firmware/.pio/build/heltec-v4/SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        if: steps.check_release.outputs.skip_build == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_release.outputs.ru_tag }}
+          name: Meshtastic Heltec V4 RU ${{ steps.get_release.outputs.tag }}
+          body: |
+            ✅ Stable build for **Heltec V4 OLED** with **RU support**
+            🔗 Based on upstream release [${{ steps.get_release.outputs.tag }}](https://github.com/meshtastic/firmware/releases/tag/${{ steps.get_release.outputs.tag }})
+
+            **Checksums (SHA256):**
+            ```
+            $(cat firmware/.pio/build/heltec-v4/SHA256SUMS.txt)
+            ```
+
+            Firmware attached below 👇
+          files: |
+            firmware/.pio/build/heltec-v4/firmware-heltec-v4-ru-*.bin
+            firmware/.pio/build/heltec-v4/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

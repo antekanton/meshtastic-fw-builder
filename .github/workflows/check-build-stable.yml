@@ -62,37 +62,163 @@ jobs:
           sed -i '/-I variants\/esp32s3\/heltec_v4/a\  -D OLED_RU' firmware/variants/esp32s3/heltec_v4/platformio.ini
           cat firmware/variants/esp32s3/heltec_v4/platformio.ini
 
-      - name: Patch RU transmit power
+      - name: Patch RU power_limit
         if: steps.check_release.outputs.skip_build == 'false'
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+          import sys
           
           path = Path("firmware/src/mesh/RadioInterface.cpp")
-          old = (
-              "RDEF(RU, 868.7f, 869.2f, 100, 20, "
-              "false, false, PROFILE_STD, PRESET(LONG_FAST), 0),"
-          )
-          new = (
-              "RDEF(RU, 868.7f, 869.2f, 100, 30, "
-              "false, false, PROFILE_STD, PRESET(LONG_FAST), 0),"
-          )
+          new_power_limit = "30"
+          
+          if not path.is_file():
+              raise SystemExit(f"File not found: {path}")
           
           text = path.read_text()
           
-          count = text.count(old)
-          if count != 1:
+          def split_top_level(value):
+              """
+              Разделяет аргументы по запятым верхнего уровня.
+              Например, не разделяет PRESET(LONG_FAST).
+              """
+              result = []
+              start = 0
+              depth = 0
+          
+              for index, char in enumerate(value):
+                  if char == "(":
+                      depth += 1
+                  elif char == ")":
+                      depth -= 1
+                  elif char == "," and depth == 0:
+                      result.append((start, index))
+                      start = index + 1
+          
+              result.append((start, len(value)))
+              return result
+          
+          # Ищем объявление макроса RDEF и его список параметров.
+          define_match = re.search(
+              r"#define\s+RDEF\s*\((.*?)\)",
+              text,
+              flags=re.DOTALL,
+          )
+          
+          if not define_match:
+              raise SystemExit("RDEF macro definition was not found")
+          
+          define_arguments = define_match.group(1)
+          define_params = [
+              define_arguments[start:end].strip()
+              for start, end in split_top_level(define_arguments)
+          ]
+          
+          try:
+              power_limit_index = define_params.index("power_limit")
+          except ValueError:
               raise SystemExit(
-                  f"Expected exactly one RU definition, found {count}"
+                  f"Parameter power_limit was not found in RDEF definition: "
+                  f"{define_params}"
               )
           
-          path.write_text(text.replace(old, new, 1))
-          print(f"Patched: {old}")
-          print(f"Result : {new}")
-          PY
+          print(f"RDEF parameters: {define_params}")
+          print(f"power_limit argument index: {power_limit_index}")
           
-          grep -nF 'RDEF(RU' firmware/src/mesh/RadioInterface.cpp
+          # Ищем все вызовы RDEF(RU, ...).
+          ru_pattern = re.compile(r"\bRDEF\s*\(\s*RU\s*,")
+          ru_matches = list(ru_pattern.finditer(text))
+          
+          if len(ru_matches) != 1:
+              raise SystemExit(
+                  f"Expected exactly one RDEF(RU, ...) call, "
+                  f"found {len(ru_matches)}"
+              )
+          
+          match = ru_matches[0]
+          
+          # Находим открывающую скобку вызова RDEF.
+          opening_parenthesis = text.find("(", match.start(), match.end())
+          
+          if opening_parenthesis == -1:
+              raise SystemExit("Opening parenthesis of RDEF(RU) was not found")
+          
+          # Ищем соответствующую закрывающую скобку,
+          # учитывая вложенный PRESET(LONG_FAST).
+          depth = 0
+          closing_parenthesis = None
+          
+          for index in range(opening_parenthesis, len(text)):
+              char = text[index]
+          
+              if char == "(":
+                  depth += 1
+              elif char == ")":
+                  depth -= 1
+          
+                  if depth == 0:
+                      closing_parenthesis = index
+                      break
+          
+          if closing_parenthesis is None:
+              raise SystemExit("Closing parenthesis of RDEF(RU) was not found")
+          
+          invocation_arguments_start = opening_parenthesis + 1
+          invocation_arguments_end = closing_parenthesis
+          
+          invocation_arguments = text[
+              invocation_arguments_start:invocation_arguments_end
+          ]
+          
+          argument_spans = split_top_level(invocation_arguments)
+          
+          if len(argument_spans) != len(define_params):
+              raise SystemExit(
+                  f"RDEF(RU) has {len(argument_spans)} arguments, "
+                  f"but the macro defines {len(define_params)} parameters"
+              )
+          
+          argument_start, argument_end = argument_spans[power_limit_index]
+          
+          # Убираем пробелы только по краям выбранного аргумента,
+          # остальные части строки оставляем без изменений.
+          while argument_start < argument_end and \
+                  invocation_arguments[argument_start].isspace():
+              argument_start += 1
+          
+          while argument_end > argument_start and \
+                  invocation_arguments[argument_end - 1].isspace():
+              argument_end -= 1
+          
+          old_power_limit = invocation_arguments[argument_start:argument_end]
+          
+          if not old_power_limit.isdigit():
+              raise SystemExit(
+                  f"power_limit is not a decimal integer: {old_power_limit!r}"
+              )
+          
+          absolute_start = invocation_arguments_start + argument_start
+          absolute_end = invocation_arguments_start + argument_end
+          
+          patched_text = (
+              text[:absolute_start]
+              + new_power_limit
+              + text[absolute_end:]
+          )
+          
+          path.write_text(patched_text)
+          
+          print(
+              f"Patched RDEF(RU) power_limit: "
+              f"{old_power_limit} -> {new_power_limit}"
+          )
+          
+          for line in patched_text.splitlines():
+              if "RDEF(RU" in line:
+                  print(line)
+          PY
       
       - name: Build Heltec V4 firmware
         if: steps.check_release.outputs.skip_build == 'false'

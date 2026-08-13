@@ -1,4 +1,4 @@
-name: Stable Check-Build Meshtastic Heltec v4 OLED_RU
+name: Stable Check-Build Meshtastic Multi-Board RU
 
 on:
   workflow_dispatch:
@@ -10,6 +10,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Heltec V4 OLED (ESP32-S3)
+          - board: heltec-v4
+            variant_path: variants/esp32s3/heltec_v4
+            variant_define: OLED_RU
+            display_name: "Heltec V4 OLED"
+
+          # Heltec V3 (ESP32-S3)
+          - board: heltec-v3
+            variant_path: variants/esp32s3/heltec_v3
+            variant_define: HELTEC_V3_RU
+            display_name: "Heltec V3"
+
+          # Heltec Mesh Node T114 (nRF52840)
+          - board: heltec-mesh-node-t114
+            variant_path: variants/nrf52840/heltec_mesh_node_t114
+            variant_define: HELTEC_T114_RU
+            display_name: "Heltec T114"
+
+          # Heltec Mesh Node T096 (nRF52840)
+          - board: heltec-mesh-node-t096
+            variant_path: variants/nrf52840/heltec_mesh_node_t096
+            variant_define: HELTEC_T096_RU
+            display_name: "Heltec T096"
 
     steps:
       - name: Checkout this repo
@@ -55,12 +82,13 @@ jobs:
           git clone --depth=1 --branch ${{ steps.get_release.outputs.tag }} https://github.com/meshtastic/firmware.git
           cd firmware
           git submodule update --init --recursive
-          
-      - name: Patch platformio.ini for OLED_RU
+
+      - name: Patch platformio.ini for RU
         if: steps.check_release.outputs.skip_build == 'false'
         run: |
-          sed -i '/-I variants\/esp32s3\/heltec_v4/a\  -D OLED_RU' firmware/variants/esp32s3/heltec_v4/platformio.ini
-          cat firmware/variants/esp32s3/heltec_v4/platformio.ini
+          sed -i '/-I ${{ matrix.variant_path }}/a\  -D ${{ matrix.variant_define }}' \
+            "firmware/${{ matrix.variant_path }}/platformio.ini"
+          cat "firmware/${{ matrix.variant_path }}/platformio.ini"
 
       - name: Patch RU power_limit
         if: steps.check_release.outputs.skip_build == 'false'
@@ -70,24 +98,20 @@ jobs:
           from pathlib import Path
           import re
           import sys
-          
+
           path = Path("firmware/src/mesh/RadioInterface.cpp")
           new_power_limit = "30"
-          
+
           if not path.is_file():
               raise SystemExit(f"File not found: {path}")
-          
+
           text = path.read_text()
-          
+
           def split_top_level(value):
-              """
-              Разделяет аргументы по запятым верхнего уровня.
-              Например, не разделяет PRESET(LONG_FAST).
-              """
               result = []
               start = 0
               depth = 0
-          
+
               for index, char in enumerate(value):
                   if char == "(":
                       depth += 1
@@ -96,26 +120,25 @@ jobs:
                   elif char == "," and depth == 0:
                       result.append((start, index))
                       start = index + 1
-          
+
               result.append((start, len(value)))
               return result
-          
-          # Ищем объявление макроса RDEF и его список параметров.
+
           define_match = re.search(
               r"#define\s+RDEF\s*\((.*?)\)",
               text,
               flags=re.DOTALL,
           )
-          
+
           if not define_match:
               raise SystemExit("RDEF macro definition was not found")
-          
+
           define_arguments = define_match.group(1)
           define_params = [
               define_arguments[start:end].strip()
               for start, end in split_top_level(define_arguments)
           ]
-          
+
           try:
               power_limit_index = define_params.index("power_limit")
           except ValueError:
@@ -123,122 +146,115 @@ jobs:
                   f"Parameter power_limit was not found in RDEF definition: "
                   f"{define_params}"
               )
-          
-          print(f"RDEF parameters: {define_params}")
-          print(f"power_limit argument index: {power_limit_index}")
-          
-          # Ищем все вызовы RDEF(RU, ...).
+
           ru_pattern = re.compile(r"\bRDEF\s*\(\s*RU\s*,")
           ru_matches = list(ru_pattern.finditer(text))
-          
+
           if len(ru_matches) != 1:
               raise SystemExit(
                   f"Expected exactly one RDEF(RU, ...) call, "
                   f"found {len(ru_matches)}"
               )
-          
+
           match = ru_matches[0]
-          
-          # Находим открывающую скобку вызова RDEF.
           opening_parenthesis = text.find("(", match.start(), match.end())
-          
+
           if opening_parenthesis == -1:
               raise SystemExit("Opening parenthesis of RDEF(RU) was not found")
-          
-          # Ищем соответствующую закрывающую скобку,
-          # учитывая вложенный PRESET(LONG_FAST).
+
           depth = 0
           closing_parenthesis = None
-          
+
           for index in range(opening_parenthesis, len(text)):
               char = text[index]
-          
+
               if char == "(":
                   depth += 1
               elif char == ")":
                   depth -= 1
-          
+
                   if depth == 0:
                       closing_parenthesis = index
                       break
-          
+
           if closing_parenthesis is None:
               raise SystemExit("Closing parenthesis of RDEF(RU) was not found")
-          
+
           invocation_arguments_start = opening_parenthesis + 1
           invocation_arguments_end = closing_parenthesis
-          
+
           invocation_arguments = text[
               invocation_arguments_start:invocation_arguments_end
           ]
-          
+
           argument_spans = split_top_level(invocation_arguments)
-          
+
           if len(argument_spans) != len(define_params):
               raise SystemExit(
                   f"RDEF(RU) has {len(argument_spans)} arguments, "
                   f"but the macro defines {len(define_params)} parameters"
               )
-          
+
           argument_start, argument_end = argument_spans[power_limit_index]
-          
-          # Убираем пробелы только по краям выбранного аргумента,
-          # остальные части строки оставляем без изменений.
+
           while argument_start < argument_end and \
                   invocation_arguments[argument_start].isspace():
               argument_start += 1
-          
+
           while argument_end > argument_start and \
                   invocation_arguments[argument_end - 1].isspace():
               argument_end -= 1
-          
+
           old_power_limit = invocation_arguments[argument_start:argument_end]
-          
+
           if not old_power_limit.isdigit():
               raise SystemExit(
                   f"power_limit is not a decimal integer: {old_power_limit!r}"
               )
-          
+
           absolute_start = invocation_arguments_start + argument_start
           absolute_end = invocation_arguments_start + argument_end
-          
+
           patched_text = (
               text[:absolute_start]
               + new_power_limit
               + text[absolute_end:]
           )
-          
+
           path.write_text(patched_text)
-          
+
           print(
               f"Patched RDEF(RU) power_limit: "
               f"{old_power_limit} -> {new_power_limit}"
           )
-          
+
           for line in patched_text.splitlines():
               if "RDEF(RU" in line:
                   print(line)
           PY
-      
-      - name: Build Heltec V4 firmware
+
+      - name: Build firmware
         if: steps.check_release.outputs.skip_build == 'false'
         run: |
           cd firmware
-          pio run -e heltec-v4 -t buildfs --disable-auto-clean
-          pio run -e heltec-v4
+          pio run -e ${{ matrix.board }} -t buildfs --disable-auto-clean
+          pio run -e ${{ matrix.board }}
 
       - name: Rename binaries with versioned names
         if: steps.check_release.outputs.skip_build == 'false'
         run: |
-          cd firmware/.pio/build/heltec-v4
-          for f in *heltec-v4*.bin; do [[ "$f" == *-v4-ru-* ]] && continue; mv -- "$f" "${f/-v4-/-v4-ru-}"; done
+          cd firmware/.pio/build/${{ matrix.board }}
+          for f in *${{ matrix.board }}*.bin; do
+            [[ "$f" == *-ru-* ]] && continue
+            mv -- "$f" "${f/-${{ matrix.board }}-/-${{ matrix.board }}-ru-}"
+          done
 
       - name: Generate checksums
         if: steps.check_release.outputs.skip_build == 'false'
         id: checksum
         run: |
-          cd firmware/.pio/build/heltec-v4
-          for f in firmware-heltec-v4-ru-*.bin; do
+          cd firmware/.pio/build/${{ matrix.board }}
+          for f in firmware-${{ matrix.board }}-ru-*.bin; do
             sha256sum "$f" >> SHA256SUMS.txt
           done
           echo "Checksums generated:"
@@ -248,29 +264,29 @@ jobs:
         if: steps.check_release.outputs.skip_build == 'false'
         uses: actions/upload-artifact@v4
         with:
-          name: heltec-v4-${{ steps.get_release.outputs.ru_tag }}
+          name: ${{ matrix.board }}-${{ steps.get_release.outputs.ru_tag }}
           path: |
-            firmware/.pio/build/heltec-v4/firmware-heltec-v4-ru-*.bin
-            firmware/.pio/build/heltec-v4/SHA256SUMS.txt
+            firmware/.pio/build/${{ matrix.board }}/firmware-${{ matrix.board }}-ru-*.bin
+            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
 
       - name: Publish GitHub Release
         if: steps.check_release.outputs.skip_build == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_release.outputs.ru_tag }}
-          name: Meshtastic Heltec V4 RU ${{ steps.get_release.outputs.tag }}
+          name: Meshtastic RU ${{ matrix.display_name }} ${{ steps.get_release.outputs.tag }}
           body: |
-            ✅ Stable build for **Heltec V4 OLED** with **RU support**
+            ✅ Stable build for **${{ matrix.display_name }}** with **RU support**
             🔗 Based on upstream release [${{ steps.get_release.outputs.tag }}](https://github.com/meshtastic/firmware/releases/tag/${{ steps.get_release.outputs.tag }})
 
             **Checksums (SHA256):**
             ```
-            $(cat firmware/.pio/build/heltec-v4/SHA256SUMS.txt)
+            $(cat firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt)
             ```
 
             Firmware attached below 👇
           files: |
-            firmware/.pio/build/heltec-v4/firmware-heltec-v4-ru-*.bin
-            firmware/.pio/build/heltec-v4/SHA256SUMS.txt
+            firmware/.pio/build/${{ matrix.board }}/firmware-${{ matrix.board }}-ru-*.bin
+            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

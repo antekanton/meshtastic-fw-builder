@@ -4,8 +4,8 @@ on:
   workflow_dispatch:     # Manual trigger for testing
   repository_dispatch:   # Optional external trigger
     types: [meshtastic-prerelease]
-  schedule:
-    - cron: "0 3 * * *"  # Run daily to check for new prereleases
+#  schedule:
+#    - cron: "0 3 * * *"  # Run daily to check for new prereleases
 
 jobs:
   build:

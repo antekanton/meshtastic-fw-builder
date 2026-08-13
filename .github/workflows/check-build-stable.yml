@@ -1,11 +1,11 @@
 name: Stable Check-Build Meshtastic Heltec v4 OLED_RU
 
 on:
-  workflow_dispatch:     # Manual trigger for testing
-  # repository_dispatch:   # Optional external trigger
-  #   types: [meshtastic-release] # Disabled temporarily as stable v4 isn't out yet
-  # schedule:
-  #   - cron: "0 2 * * *"  # Disabled temporarily as stable v4 isn't out yet  # Run daily to check for new releases
+  workflow_dispatch:
+  repository_dispatch:
+    types: [meshtastic-release]
+  schedule:
+    - cron: "0 2 * * *"
 
 jobs:
   build:

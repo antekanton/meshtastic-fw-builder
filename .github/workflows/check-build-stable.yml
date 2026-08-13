@@ -61,6 +61,38 @@ jobs:
         run: |
           sed -i '/-I variants\/esp32s3\/heltec_v4/a\  -D OLED_RU' firmware/variants/esp32s3/heltec_v4/platformio.ini
           cat firmware/variants/esp32s3/heltec_v4/platformio.ini
+
+      - name: Patch RU transmit power
+        if: steps.check_release.outputs.skip_build == 'false'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          
+          path = Path("firmware/src/mesh/RadioInterface.cpp")
+          old = (
+              "RDEF(RU, 868.7f, 869.2f, 100, 20, "
+              "false, false, PROFILE_STD, PRESET(LONG_FAST), 0),"
+          )
+          new = (
+              "RDEF(RU, 868.7f, 869.2f, 100, 30, "
+              "false, false, PROFILE_STD, PRESET(LONG_FAST), 0),"
+          )
+          
+          text = path.read_text()
+          
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f"Expected exactly one RU definition, found {count}"
+              )
+          
+          path.write_text(text.replace(old, new, 1))
+          print(f"Patched: {old}")
+          print(f"Result : {new}")
+          PY
+          
+          grep -nF 'RDEF(RU' firmware/src/mesh/RadioInterface.cpp
       
       - name: Build Heltec V4 firmware
         if: steps.check_release.outputs.skip_build == 'false'

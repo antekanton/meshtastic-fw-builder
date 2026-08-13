@@ -83,12 +83,49 @@ jobs:
           cd firmware
           git submodule update --init --recursive
 
-      - name: Patch platformio.ini for RU
+      - name: Patch platformio.ini for RU (Python)
         if: steps.check_release.outputs.skip_build == 'false'
         run: |
-          sed -i '/-I ${{ matrix.variant_path }}/a\  -D ${{ matrix.variant_define }}' \
-            "firmware/${{ matrix.variant_path }}/platformio.ini"
-          cat "firmware/${{ matrix.variant_path }}/platformio.ini"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          
+          variant_path = os.environ.get('VARIANT_PATH')
+          variant_define = os.environ.get('VARIANT_DEFINE')
+          
+          ini_file = Path(f"firmware/{variant_path}/platformio.ini")
+          
+          if not ini_file.exists():
+              raise FileNotFoundError(f"File not found: {ini_file}")
+          
+          content = ini_file.read_text()
+          
+          # Find the line with -I and add -D after it
+          lines = content.splitlines()
+          new_lines = []
+          
+          for line in lines:
+              new_lines.append(line)
+              if f"-I {variant_path}" in line and '-D' not in line:
+                  # Add -D line after -I line
+                  new_lines.append(f"  -D {variant_define}")
+          
+          # If no -I line found, append to build_flags
+          if variant_define not in '\n'.join(new_lines):
+              for i, line in enumerate(new_lines):
+                  if 'build_flags' in line and '=' in line:
+                      # Append to the same line
+                      new_lines[i] = line.rstrip() + f" -D {variant_define}"
+                      break
+          
+          ini_file.write_text('\n'.join(new_lines))
+          
+          print(f"Patched {ini_file}:")
+          print(ini_file.read_text())
+          PY
+        env:
+          VARIANT_PATH: ${{ matrix.variant_path }}
+          VARIANT_DEFINE: ${{ matrix.variant_define }}
 
       - name: Patch RU power_limit
         if: steps.check_release.outputs.skip_build == 'false'

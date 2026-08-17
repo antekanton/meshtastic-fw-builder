@@ -280,21 +280,21 @@ jobs:
         if: steps.check_release.outputs.skip_build == 'false'
         run: |
           cd firmware/.pio/build/${{ matrix.board }}
-          for f in *.bin *.uf2; do
+          for f in *${{ matrix.board }}*.bin firmware.uf2; do
             [[ "$f" == *-ru-* ]] && continue
             mv -- "$f" "${f/-${{ matrix.board }}-/-${{ matrix.board }}-ru-}"
           done
-
-      - name: Generate checksums
-        if: steps.check_release.outputs.skip_build == 'false'
-        id: checksum
-        run: |
-          cd firmware/.pio/build/${{ matrix.board }}
-          for f in firmware-${{ matrix.board }}-ru-*.bin; do
-            sha256sum "$f" >> SHA256SUMS.txt
-          done
-          echo "Checksums generated:"
-          cat SHA256SUMS.txt
+#
+#      - name: Generate checksums
+#        if: steps.check_release.outputs.skip_build == 'false'
+#        id: checksum
+#        run: |
+#          cd firmware/.pio/build/${{ matrix.board }}
+#          for f in firmware-${{ matrix.board }}-ru-*.bin; do
+#            sha256sum "$f" >> SHA256SUMS.txt
+#          done
+#          echo "Checksums generated:"
+#          cat SHA256SUMS.txt
 
       - name: Upload firmware binaries (Actions artifacts)
         if: steps.check_release.outputs.skip_build == 'false'
@@ -304,7 +304,7 @@ jobs:
           path: |
             firmware/.pio/build/${{ matrix.board }}/firmware-${{ matrix.board }}-ru-*.bin
             firmware/.pio/build/${{ matrix.board }}/*-ru-*.uf2
-            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
+#            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
 
       - name: Publish GitHub Release
         if: steps.check_release.outputs.skip_build == 'false'
@@ -319,7 +319,8 @@ jobs:
             Firmware attached below 👇
           files: |
             firmware/.pio/build/${{ matrix.board }}/firmware-${{ matrix.board }}-ru-*.bin
-            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
+            firmware/.pio/build/${{ matrix.board }}/*-ru-*.uf2
+#            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

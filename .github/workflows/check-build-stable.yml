@@ -76,7 +76,7 @@ jobs:
           LATEST_TAG=$(curl -s https://api.github.com/repos/meshtastic/firmware/releases/latest | jq -r .tag_name)
           echo "Latest Meshtastic release: $LATEST_TAG"
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "ru_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "ru_tag=${LATEST_TAG}-RU" >> $GITHUB_OUTPUT
 
       - name: Check if already built
         id: check_release
@@ -294,27 +294,20 @@ jobs:
           cd firmware
           pio run -e ${{ matrix.board }}
 
-      - name: Upload firmware binaries
-        if: steps.check_release.outputs.skip_build == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.board }}-${{ steps.get_release.outputs.ru_tag }}
-          path: |
-            firmware/.pio/build/${{ matrix.board }}/*.${{ matrix.fw_file_extension }}
-
       - name: Publish GitHub Release
         if: steps.check_release.outputs.skip_build == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ matrix.board }}-${{ steps.get_release.outputs.ru_tag }}
-          name: Meshtastic RU ${{ matrix.display_name }} ${{ steps.get_release.outputs.tag }}
+          tag_name: ${{ steps.get_release.outputs.ru_tag }}
+          name: Meshtastic RU ${{ steps.get_release.outputs.ru_tag }}
           body: |
-            ✅ Stable build for **${{ matrix.display_name }}** with **RU support**
+            ✅ Stable build with **RU support**
             🔗 Based on upstream release [${{ steps.get_release.outputs.tag }}](https://github.com/meshtastic/firmware/releases/tag/${{ steps.get_release.outputs.tag }})
 
             Firmware attached below 👇
           files: |
-            firmware/.pio/build/${{ matrix.board }}/*.${{ matrix.fw_file_extension }}
-          generate_release_notes: true
+            firmware/.pio/build/**/firmware*.bin
+            firmware/.pio/build/**/firmware*.uf2
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

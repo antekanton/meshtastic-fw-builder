@@ -76,7 +76,7 @@ jobs:
           LATEST_TAG=$(curl -s https://api.github.com/repos/meshtastic/firmware/releases/latest | jq -r .tag_name)
           echo "Latest Meshtastic release: $LATEST_TAG"
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "ru_tag=${LATEST_TAG}-ru" >> $GITHUB_OUTPUT
+          echo "ru_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
 
       - name: Check if already built
         id: check_release
@@ -300,7 +300,7 @@ jobs:
         with:
           name: ${{ matrix.board }}-${{ steps.get_release.outputs.ru_tag }}
           path: |
-            firmware/.pio/build/${{ matrix.board }}/*.{{ matrix.fw_file_extension }}
+            firmware/.pio/build/${{ matrix.board }}/*.${{ matrix.fw_file_extension }}
 
       - name: Publish GitHub Release
         if: steps.check_release.outputs.skip_build == 'false'
@@ -314,7 +314,7 @@ jobs:
 
             Firmware attached below 👇
           files: |
-            firmware/.pio/build/${{ matrix.board }}/*.{{ matrix.fw_file_extension }}
+            firmware/.pio/build/${{ matrix.board }}/*.${{ matrix.fw_file_extension }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

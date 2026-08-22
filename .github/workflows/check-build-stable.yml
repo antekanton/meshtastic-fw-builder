@@ -14,6 +14,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Lilygo T3S3 E-Paper (ESP32-S3)
+          - board: tlora_t3s3_epaper
+            variant_path: variants/esp32s3/tlora_t3s3_epaper
+            variant_define: OLED_RU
+            display_name: "Lilygo T3S3 E-Paper"
+            fw_file_extension: bin
+
           # Heltec V4 OLED (ESP32-S3)
           - board: heltec-v4
             variant_path: variants/esp32s3/heltec_v4
@@ -300,8 +307,7 @@ jobs:
 
             Firmware attached below 👇
           files: |
-            firmware/.pio/build/${{ matrix.board }}/firmware-${{ matrix.board }}-ru-*.bin
-            firmware/.pio/build/${{ matrix.board }}/*-ru-*.uf2
+            firmware/.pio/build/${{ matrix.board }}/*.{{ matrix.fw_file_extension }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

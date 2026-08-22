@@ -12,6 +12,7 @@ Stable Meshtastic firmware builds for Heltec boards with Russian language suppor
 
 ### Supported Devices
 
+- **Lilygo T3S3** (ESP32-S3)
 - **Lilygo T3S3 E-Paper** (ESP32-S3)
 - **Heltec V4 OLED** (ESP32-S3)
 - **Heltec V3** (ESP32-S3)

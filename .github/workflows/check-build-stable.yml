@@ -301,10 +301,25 @@ jobs:
           tag_name: ${{ steps.get_release.outputs.ru_tag }}
           name: Meshtastic RU ${{ steps.get_release.outputs.ru_tag }}
           body: |
+            ## English
             ✅ Stable build with **RU support**
             🔗 Based on upstream release [${{ steps.get_release.outputs.tag }}](https://github.com/meshtastic/firmware/releases/tag/${{ steps.get_release.outputs.tag }})
-
+            
+            ⚠️ **Factory firmware** (`firmware-*-factory.bin`) resets all settings to defaults
+            🔄 Regular firmware (`firmware-*.bin`) preserves your settings
+            
             Firmware attached below 👇
+            
+            ---
+            
+            ## Русский
+            ✅ Стабильная сборка с **поддержкой RU**
+            🔗 Основано на релизе upstream [${{ steps.get_release.outputs.tag }}](https://github.com/meshtastic/firmware/releases/tag/${{ steps.get_release.outputs.tag }})
+            
+            ⚠️ **Factory-прошивка** (`firmware-*-factory.bin`) сбрасывает все настройки на стандартные
+            🔄 Обычная прошивка (`firmware-*.bin`) сохраняет ваши настройки
+      
+            Прошивки прикреплены ниже 👇
           files: |
             firmware/.pio/build/**/firmware*.bin
             firmware/.pio/build/**/firmware*.uf2

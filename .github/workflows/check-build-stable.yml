@@ -15,7 +15,14 @@ jobs:
       matrix:
         include:
           # Lilygo T3S3 E-Paper (ESP32-S3)
-          - board: tlora_t3s3_epaper
+          - board: tlora-t3s3-epaper
+            variant_path: variants/esp32s3/tlora_t3s3_epaper
+            variant_define: OLED_RU
+            display_name: "Lilygo T3S3 E-Paper"
+            fw_file_extension: bin
+
+          # Lilygo T3S3 E-Paper (ESP32-S3)
+          - board: tlora-t3s3-epaper-inkhud
             variant_path: variants/esp32s3/tlora_t3s3_epaper
             variant_define: OLED_RU
             display_name: "Lilygo T3S3 E-Paper"

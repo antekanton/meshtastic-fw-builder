@@ -280,32 +280,13 @@ jobs:
           cd firmware
           pio run -e ${{ matrix.board }}
 
-      - name: Rename binaries with versioned names
-        if: steps.check_release.outputs.skip_build == 'false'
-        run: |
-          cd firmware/.pio/build/${{ matrix.board }}
-          mv firmware.${{ matrix.fw_file_extension }} ${{ matrix.board }}-ru-${{ steps.get_release.outputs.tag }}.bin
-#
-#      - name: Generate checksums
-#        if: steps.check_release.outputs.skip_build == 'false'
-#        id: checksum
-#        run: |
-#          cd firmware/.pio/build/${{ matrix.board }}
-#          for f in firmware-${{ matrix.board }}-ru-*.bin; do
-#            sha256sum "$f" >> SHA256SUMS.txt
-#          done
-#          echo "Checksums generated:"
-#          cat SHA256SUMS.txt
-
-      - name: Upload firmware binaries (Actions artifacts)
+      - name: Upload firmware binaries
         if: steps.check_release.outputs.skip_build == 'false'
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.board }}-${{ steps.get_release.outputs.ru_tag }}
           path: |
-            firmware/.pio/build/${{ matrix.board }}/firmware-${{ matrix.board }}-ru-*.bin
-            firmware/.pio/build/${{ matrix.board }}/*-ru-*.uf2
-#            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
+            firmware/.pio/build/${{ matrix.board }}/*.{{ matrix.fw_file_extension }}
 
       - name: Publish GitHub Release
         if: steps.check_release.outputs.skip_build == 'false'
@@ -321,7 +302,6 @@ jobs:
           files: |
             firmware/.pio/build/${{ matrix.board }}/firmware-${{ matrix.board }}-ru-*.bin
             firmware/.pio/build/${{ matrix.board }}/*-ru-*.uf2
-#            firmware/.pio/build/${{ matrix.board }}/SHA256SUMS.txt
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

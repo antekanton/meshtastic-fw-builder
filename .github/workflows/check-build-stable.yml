@@ -19,24 +19,28 @@ jobs:
             variant_path: variants/esp32s3/heltec_v4
             variant_define: OLED_RU
             display_name: "Heltec V4 OLED"
+            fw_file_extension: bin
 
           # Heltec V3 (ESP32-S3)
           - board: heltec-v3
             variant_path: variants/esp32s3/heltec_v3
             variant_define: OLED_RU
             display_name: "Heltec V3"
+            fw_file_extension: bin
 
           # Heltec Mesh Node T114 (nRF52840)
           - board: heltec-mesh-node-t114
             variant_path: variants/nrf52840/heltec_mesh_node_t114
             variant_define: OLED_RU
             display_name: "Heltec T114"
+            fw_file_extension: uf2
 
           # Heltec Mesh Node T096 (nRF52840)
           - board: heltec-mesh-node-t096
             variant_path: variants/nrf52840/heltec_mesh_node_t096
             variant_define: OLED_RU
             display_name: "Heltec T096"
+            fw_file_extension: uf2
 
     steps:
       - name: Checkout this repo
@@ -280,10 +284,7 @@ jobs:
         if: steps.check_release.outputs.skip_build == 'false'
         run: |
           cd firmware/.pio/build/${{ matrix.board }}
-          for f in *${{ matrix.board }}*.bin firmware.uf2; do
-            [[ "$f" == *-ru-* ]] && continue
-            mv -- "$f" "${f/-${{ matrix.board }}-/-${{ matrix.board }}-ru-}"
-          done
+          mv firmware.${{ matrix.fw_file_extension }} ${{ matrix.board }}-ru-${{ steps.get_release.outputs.tag }}.bin
 #
 #      - name: Generate checksums
 #        if: steps.check_release.outputs.skip_build == 'false'

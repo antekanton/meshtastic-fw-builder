@@ -45,6 +45,7 @@ This repository uses GitHub Actions to automatically build firmware when a new M
 
 ### Поддерживаемые устройства
 
+- **Lilygo T3S3** (ESP32-S3)
 - **Lilygo T3S3 E-Paper** (ESP32-S3)
 - **Heltec V4 OLED** (ESP32-S3)
 - **Heltec V3** (ESP32-S3)

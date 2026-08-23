@@ -306,7 +306,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_release.outputs.ru_tag }}
-          name: Meshtastic RU ${{ steps.get_release.outputs.ru_tag }}
+          name: ${{ steps.get_release.outputs.ru_tag }}
           body: |
             ## English
             ✅ Stable build with **RU support**
@@ -320,7 +320,7 @@ jobs:
             ---
             
             ## Русский
-            ✅ Стабильная сборка с **поддержкой RU**
+            ✅ Стабильная сборка с **поддержкой кириллицы**
             🔗 Основано на релизе upstream [${{ steps.get_release.outputs.tag }}](https://github.com/meshtastic/firmware/releases/tag/${{ steps.get_release.outputs.tag }})
             
             ⚠️ **Factory-прошивка** (`firmware-*-factory.bin`) сбрасывает все настройки на стандартные

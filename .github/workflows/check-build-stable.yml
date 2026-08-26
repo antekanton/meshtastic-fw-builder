@@ -90,11 +90,11 @@ jobs:
         run: |
           RU_TAG="${{ steps.get_release.outputs.ru_tag }}"
           
-          if gh release view "$RU_TAG" >/dev/null 2>&1; then
+          if gh release view "$RU_TAG"; then
             echo "Release '$RU_TAG' exists. Checking for board file..."
           
             # Получаем список файлов в релизе и проверяем, есть ли файл с именем, содержащим board
-            if gh release view "$RU_TAG" --json assets | jq -e ".assets[].name | contains(\"${{ matrix.board }}\")" >/dev/null 2>&1; then
+            if gh release view "$RU_TAG" --json assets | jq -e ".assets[].name | contains(\"${{ matrix.board }}\")"; then
               echo "File with board '${{ matrix.board }}' found in release. Skipping build."
               echo "skip_build=true" >> $GITHUB_OUTPUT
             else
